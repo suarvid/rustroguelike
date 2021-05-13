@@ -21,6 +21,16 @@ pub struct Map {
 }
 
 impl Map {
+    fn is_exit_valid(&self, x: i32, y: i32) -> bool {
+        if x < 1 || x > self.width - 1 || y < 1 || y > self.height - 1 {
+            return false;
+        }
+
+        let idx = self.xy_idx(x, y);
+        self.tiles[idx as usize] != TileType::Wall
+    }
+
+
     pub fn xy_idx(&self, x: i32, y: i32) -> usize {
         (y as usize * self.width as usize) + x as usize
     }
@@ -129,7 +139,6 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
     for (idx, tile) in map.tiles.iter().enumerate() {
         // only render visible tiles
         if map.revealed_tiles[idx] {
-
             let glyph;
             let mut fg;
 
@@ -138,7 +147,6 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
                 TileType::Floor => {
                     glyph = rltk::to_cp437('.');
                     fg = RGB::named(rltk::GREY);
-                    
                 }
                 TileType::Wall => {
                     glyph = rltk::to_cp437('#');
@@ -165,6 +173,38 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
 impl BaseMap for Map {
     fn is_opaque(&self, idx: usize) -> bool {
         self.tiles[idx as usize] == TileType::Wall
+    }
+
+
+    fn get_available_exits(&self, idx: usize) -> rltk::SmallVec<[(usize, f32); 10]> {
+        let mut exits = rltk::SmallVec::new();
+
+        let x = idx as i32 % self.width;
+        let y = idx as i32 / self.width;
+        let w = self.width as usize;
+
+        if self.is_exit_valid(x - 1, y) {
+            exits.push((idx - 1, 1.0))
+        };
+        if self.is_exit_valid(x + 1, y) {
+            exits.push((idx + 1, 1.0))
+        };
+        if self.is_exit_valid(x, y - 1) {
+            exits.push((idx - w, 1.0))
+        };
+        if self.is_exit_valid(x, y + 1) {
+            exits.push((idx + w, 1.0))
+        };
+
+        exits
+    }
+
+
+    fn get_pathing_distance(&self, idx1: usize, idx2: usize) -> f32 {
+        let w = self.width as usize;
+        let p1 = Point::new(idx1 % w, idx1 / w);
+        let p2 = Point::new(idx2 % w, idx2 / w);
+        rltk::DistanceAlg::Pythagoras.distance2d(p1, p2)
     }
 }
 
