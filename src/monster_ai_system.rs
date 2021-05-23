@@ -1,6 +1,6 @@
+use super::{Map, Monster, Name, Position, Viewshed};
+use rltk::{console, Point};
 use specs::prelude::*;
-use super::{Viewshed, Position, Map, Monster, Name};
-use rltk::{Point, console};
 
 pub struct MonsterAI {}
 
@@ -16,23 +16,23 @@ impl<'a> System<'a> for MonsterAI {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (
-            mut map,
-            player_pos,
-            mut viewshed,
-              monster,
-               name,
-               mut position
-            ) = data;
+        let (mut map, player_pos, mut viewshed, monster, name, mut position) = data;
 
-        for (mut viewshed, _monster, name, mut pos) in (&mut viewshed, &monster, &name, &mut position).join() {
-            if viewshed.visible_tiles.contains(&*player_pos) {
+        for (mut viewshed, _monster, name, mut pos) in
+            (&mut viewshed, &monster, &name, &mut position).join()
+        {
+            let distance =
+                rltk::DistanceAlg::Pythagoras.distance2d(Point::new(pos.x, pos.y), *player_pos);
+            if distance < 1.5 {
                 console::log(&format!("{} shouts insults", name.name));
-                
+                return;
+            }
+
+            if viewshed.visible_tiles.contains(&*player_pos) {
                 let path = rltk::a_star_search(
                     map.xy_idx(pos.x, pos.y) as i32,
                     map.xy_idx(player_pos.x, player_pos.y) as i32,
-                    &mut *map
+                    &mut *map,
                 );
 
                 // steps[0] is always the current location
