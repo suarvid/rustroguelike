@@ -5,6 +5,11 @@ use rltk::{Algorithm2D, BaseMap, Point, RandomNumberGenerator, Rltk, RGB};
 use specs::prelude::*;
 use std::cmp::{max, min};
 
+const MAPWIDTH: usize = 80;
+const MAPHEIGHT: usize = 43;
+const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
+
+
 #[derive(PartialEq, Copy, Clone)]
 pub enum TileType {
     Wall,
@@ -23,6 +28,10 @@ pub struct Map {
 }
 
 impl Map {
+
+    pub fn is_out_of_bounds(&mut self, x: &i32, y: &i32) -> bool {
+        *x >= 0 && *x <= self.width && *y >= 0 && *y <= self.height
+    }
 
     pub fn clear_content_index(&mut self) {
         for content in self.tile_content.iter_mut() {
@@ -85,14 +94,14 @@ impl Map {
     // using the three functions above
     pub fn new_map_rooms_and_corridors() -> Map {
         let mut map = Map {
-            tiles: vec![TileType::Wall; 80 * 50],
+            tiles: vec![TileType::Wall; MAPCOUNT],
             rooms: Vec::new(),
-            width: 80,
-            height: 50,
-            revealed_tiles: vec![false; 80 * 50],
-            visible_tiles: vec![false; 80 * 50],
-            blocked: vec![false; 80*50],
-            tile_content: vec![Vec::new(); 80*50],
+            width: MAPWIDTH as i32,
+            height: MAPHEIGHT as i32,
+            revealed_tiles: vec![false; MAPCOUNT],
+            visible_tiles: vec![false; MAPCOUNT],
+            blocked: vec![false; MAPCOUNT],
+            tile_content: vec![Vec::new(); MAPCOUNT],
         };
 
         const MAX_ROOMS: i32 = 30;

@@ -1,4 +1,6 @@
 use specs::prelude::*;
+use crate::{Name, Player, gamelog::GameLog};
+
 use super::{CombatStats, SufferDamage};
 
 pub struct DamageSystem{}
@@ -27,10 +29,26 @@ pub fn delete_the_dead(ecs: &mut World) {
     {
         let combat_stats = ecs.read_storage::<CombatStats>();
         let entities = ecs.entities();
+        let players = ecs.read_storage::<Player>();
+        let names = ecs.read_storage::<Name>();
+        let mut log = ecs.write_resource::<GameLog>();
 
         for (entity, stats) in (&entities, &combat_stats).join() {
             if stats.hp < 1 {
-                dead.push(entity);
+
+                // check if current entity is a player
+                let player = players.get(entity);
+                match player {
+                    None => { // not the player, a mob
+                        let victim_name = names.get(entity);
+                        if let Some(victim_name) = victim_name {
+                            log.entries.push(format!("{} is dead", &victim_name.name));
+                        }
+                        dead.push(entity);
+                    }
+                    // player died
+                    Some(_) => log.entries.push("You are dead".to_string())
+                }
             }
         }
     }
