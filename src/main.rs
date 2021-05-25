@@ -1,4 +1,5 @@
-use inventory_system::InventorySystem;
+use gamelog::GameLog;
+use inventory_system::{InventorySystem, PotionUseSystem};
 use rltk::{GameState, Point, Rltk, VirtualKeyCode, RGB};
 use specs::prelude::*;
 
@@ -27,13 +28,14 @@ mod gui;
 
 pub struct State {
     ecs: World,
-    pub runstate: RunState,
 }
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RunState {
-    Paused,
-    Running,
+    AwaitingInput,
+    PreRun,
+    PlayerTurn,
+    MonsterTurn,
     ShowInventory,
 }
 
@@ -57,6 +59,9 @@ impl State {
         let mut inventory_system = InventorySystem {};
         inventory_system.run_now(&self.ecs);
 
+        let mut potion_system = PotionUseSystem {};
+        potion_system.run_now(&self.ecs);
+
         self.ecs.maintain(); // apply any changes queued up by the systems
     }
 }
@@ -64,22 +69,51 @@ impl State {
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
         ctx.cls();
+        let mut new_runstate;
+        {
+            let runstate = self.ecs.fetch::<RunState>();
+            new_runstate = *runstate;
+        }
         draw_map(&self.ecs, ctx);
         gui::draw_ui(&self.ecs, ctx);
 
-        match self.runstate {
-            RunState::Running => {
+        match new_runstate {
+            RunState::PreRun => {
                 self.run_systems();
-                self.runstate = RunState::Paused;
+                self.ecs.maintain();
+                new_runstate = RunState::AwaitingInput;
             }
-            RunState::Paused => {
-                self.runstate = player_input(self, ctx);
+            RunState::AwaitingInput => {
+                new_runstate = player_input(self, ctx);
+            }
+            RunState::PlayerTurn => {
+                self.run_systems();
+                self.ecs.maintain();
+                new_runstate = RunState::MonsterTurn;
+            }
+            RunState::MonsterTurn => {
+                self.run_systems();
+                self.ecs.maintain();
+                new_runstate = RunState::AwaitingInput;
             }
             RunState::ShowInventory => {
-                if gui::show_inventory(self, ctx) == gui::ItemMenuResult::Cancel {
-                    self.runstate = RunState::Paused;
+                let result = gui::show_inventory(self, ctx);
+                match result.0 {
+                    gui::ItemMenuResult::Cancel => new_runstate = RunState::AwaitingInput,
+                    gui::ItemMenuResult::NoResponse => {},
+                    gui::ItemMenuResult::Selected => {
+                        let item_entity = result.1.unwrap();
+                        let names = self.ecs.read_storage::<Name>();
+                        let mut gamelog = self.ecs.fetch_mut::<GameLog>();
+                        gamelog.entries.push(format!("You try to use {}, but it isn't written yet.", names.get(item_entity).unwrap().name));
+                        new_runstate = RunState::AwaitingInput;
+                    }
                 }
             }
+        }
+        {
+            let mut runwriter = self.ecs.write_resource::<RunState>();
+            *runwriter = new_runstate;
         }
 
         damage_system::delete_the_dead(&mut self.ecs);
@@ -106,7 +140,6 @@ fn main() -> rltk::BError {
 
     let mut gs = State {
         ecs: World::new(),
-        runstate: RunState::Running,
     };
 
     // Components
@@ -124,6 +157,7 @@ fn main() -> rltk::BError {
     gs.ecs.register::<Potion>();
     gs.ecs.register::<InBackpack>();
     gs.ecs.register::<WantsToPickUpItem>();
+    gs.ecs.register::<WantsToDrinkPotion>();
 
     let map: Map = Map::new_map_rooms_and_corridors();
     let (player_x, player_y) = map.rooms[0].center(); //make player spawn in center of "first" room
@@ -139,6 +173,7 @@ fn main() -> rltk::BError {
         spawner::spawn_room(&mut gs.ecs, room);
     }
 
+    gs.ecs.insert(RunState::PreRun);
     gs.ecs.insert(map);
     gs.ecs.insert(Point::new(player_x, player_y));
     gs.ecs.insert(player_entity);

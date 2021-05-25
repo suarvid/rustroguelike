@@ -90,7 +90,7 @@ fn get_item(ecs: &mut World) {
 pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
     // handle player movement
     match ctx.key {
-        None => return RunState::Paused, // no key -> Paused State
+        None => return RunState::AwaitingInput, // no key -> Paused State
         Some(key) => match key {
 
             //Movement
@@ -109,9 +109,9 @@ pub fn player_input(gs: &mut State, ctx: &mut Rltk) -> RunState {
             VirtualKeyCode::G => get_item(&mut gs.ecs),
             VirtualKeyCode::I => return RunState::ShowInventory,
 
-            _ => return RunState::Paused, //Non-used keys do nothing
+            _ => return RunState::AwaitingInput, //Non-used keys do nothing
         },
     }
 
-    RunState::Running
+    RunState::PlayerTurn
 }
