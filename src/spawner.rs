@@ -1,4 +1,4 @@
-use crate::{Item, MAPWIDTH, Potion, Rect};
+use crate::{Consumable, Item, MAPWIDTH, ProvidesHealing, Rect};
 
 use super::{BlocksTile, CombatStats, Monster, Name, Player, Position, Renderable, Viewshed};
 use rltk::{RandomNumberGenerator, RGB};
@@ -149,6 +149,9 @@ fn spawn_health_potion(ecs: &mut World, x: i32, y: i32) {
         })
         .with(Name{name: "Health Potion".to_string()})
         .with(Item{})
-        .with(Potion{heal_amount: 8})
+        .with(Consumable{})
+        .with(ProvidesHealing{
+            heal_amount: 8
+        })
         .build();
 }
