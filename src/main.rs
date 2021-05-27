@@ -2,29 +2,52 @@ use gamelog::GameLog;
 use inventory_system::{InventorySystem, ItemDropSystem, ItemUseSystem};
 use rltk::{GameState, Point, Rltk, VirtualKeyCode, RGB};
 use specs::prelude::*;
+use specs::saveload::{SimpleMarker, SimpleMarkerAllocator};
+use serde::*;
+
 
 mod components;
 mod inventory_system;
 mod spawner;
+
 pub use components::*;
+
 mod map;
+
 pub use map::*;
+
 mod player;
+
 use player::*;
+
 mod rect;
+
 pub use rect::Rect;
+
 mod visibility_system;
+
 use visibility_system::VisibilitySystem;
+
 mod monster_ai_system;
+
 use monster_ai_system::MonsterAI;
+
 mod map_indexing_system;
+
 use map_indexing_system::MapIndexingSystem;
+
 mod melee_combat_system;
+
 use melee_combat_system::MeleeCombatSystem;
+
 mod damage_system;
+
 use damage_system::DamageSystem;
+use crate::gui::MainMenuSelection;
+
 mod gamelog;
 mod gui;
+mod saveload_system;
 
 pub struct State {
     ecs: World,
@@ -41,7 +64,9 @@ pub enum RunState {
     ShowTargeting {
         range: i32,
         item: Entity,
-    }
+    },
+    MainMenu { menu_selection: gui::MainMenuSelection },
+    SaveGame,
 }
 
 impl State {
@@ -82,8 +107,34 @@ impl GameState for State {
             let runstate = self.ecs.fetch::<RunState>();
             new_runstate = *runstate;
         }
-        draw_map(&self.ecs, ctx);
-        gui::draw_ui(&self.ecs, ctx);
+
+
+
+        match new_runstate {
+            RunState::MainMenu { .. } => {}
+            _ => {
+                draw_map(&self.ecs, ctx);
+
+                {
+                    damage_system::delete_the_dead(&mut self.ecs);
+                    let positions = self.ecs.read_storage::<Position>();
+                    let renderables = self.ecs.read_storage::<Renderable>();
+                    let map = self.ecs.fetch::<Map>();
+
+                    let mut data = (&positions, &renderables).join().collect::<Vec<_>>();
+                    data.sort_by(|&a, &b| b.1.render_order.cmp(&a.1.render_order));
+                    for (pos, render) in data.iter() {
+                        let idx = map.xy_idx(pos.x, pos.y);
+                        if map.visible_tiles[idx] {
+                            ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph);
+                        }
+                    }
+
+                    gui::draw_ui(&self.ecs, ctx);
+                }
+            }
+        }
+
 
         match new_runstate {
             RunState::PreRun => {
@@ -108,16 +159,16 @@ impl GameState for State {
                 let result = gui::show_inventory(self, ctx);
                 match result.0 {
                     gui::ItemMenuResult::Cancel => new_runstate = RunState::AwaitingInput,
-                    gui::ItemMenuResult::NoResponse => {},
+                    gui::ItemMenuResult::NoResponse => {}
                     gui::ItemMenuResult::Selected => {
                         let item_entity = result.1.unwrap();
                         let ranged = self.ecs.read_storage::<Ranged>();
                         let is_item_ranged = ranged.get(item_entity);
                         if let Some(is_item_ranged) = is_item_ranged {
-                            new_runstate = RunState::ShowTargeting {range: is_item_ranged.range, item: item_entity};
+                            new_runstate = RunState::ShowTargeting { range: is_item_ranged.range, item: item_entity };
                         } else {
                             let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                            intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem{item: item_entity, target: None}).expect("Unable to insert intent");
+                            intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item: item_entity, target: None }).expect("Unable to insert intent");
                             new_runstate = RunState::PlayerTurn;
                         }
                     }
@@ -127,45 +178,49 @@ impl GameState for State {
                 let result = gui::show_drop_item_menu(self, ctx);
                 match result.0 {
                     gui::ItemMenuResult::Cancel => new_runstate = RunState::AwaitingInput,
-                    gui::ItemMenuResult::NoResponse => {},
+                    gui::ItemMenuResult::NoResponse => {}
                     gui::ItemMenuResult::Selected => {
                         let item_entity = result.1.unwrap();
                         let mut intent = self.ecs.write_storage::<WantsToDropItem>();
-                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToDropItem{item: item_entity}).expect("Unable to insert intent");
+                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToDropItem { item: item_entity }).expect("Unable to insert intent");
                         new_runstate = RunState::PlayerTurn;
                     }
                 }
             }
-            RunState::ShowTargeting{range ,item} => {
+            RunState::ShowTargeting { range, item } => {
                 let result = gui::ranged_target(self, ctx, range);
                 match result.0 {
                     gui::ItemMenuResult::Cancel => new_runstate = RunState::AwaitingInput,
-                    gui::ItemMenuResult::NoResponse => {},
+                    gui::ItemMenuResult::NoResponse => {}
                     gui::ItemMenuResult::Selected => {
                         let mut intent = self.ecs.write_storage::<WantsToUseItem>();
-                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem{item, target: result.1}).expect("Unable to insert intent");
+                        intent.insert(*self.ecs.fetch::<Entity>(), WantsToUseItem { item, target: result.1 }).expect("Unable to insert intent");
                         new_runstate = RunState::PlayerTurn;
                     }
                 }
+            }
+            RunState::MainMenu{..} => {
+                let result = gui::main_menu(self, ctx);
+                match result {
+                    gui::MainMenuResult::NoSelection{ selected} => new_runstate = RunState::MainMenu{menu_selection: selected},
+                    gui::MainMenuResult::Selected{ selected } => {
+                        match selected {
+                            gui::MainMenuSelection::NewGame => new_runstate = RunState::PreRun,
+                            gui::MainMenuSelection::LoadGame => new_runstate = RunState::PreRun,
+                            gui::MainMenuSelection::Quit => {std::process::exit(0);}
+                        }
+                    }
+                }
+            }
+            RunState::SaveGame => {
+                saveload_system::save_game(&mut self.ecs);
+
+                new_runstate = RunState::MainMenu {menu_selection: gui::MainMenuSelection::LoadGame};
             }
         }
         {
             let mut runwriter = self.ecs.write_resource::<RunState>();
             *runwriter = new_runstate;
-        }
-
-        damage_system::delete_the_dead(&mut self.ecs);
-        let positions = self.ecs.read_storage::<Position>();
-        let renderables = self.ecs.read_storage::<Renderable>();
-        let map = self.ecs.fetch::<Map>();
-
-        let mut data = (&positions, &renderables).join().collect::<Vec<_>>();
-        data.sort_by(|&a, &b| b.1.render_order.cmp(&a.1.render_order));
-        for (pos, render) in data.iter() {
-            let idx = map.xy_idx(pos.x, pos.y);
-            if map.visible_tiles[idx] {
-                ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph);
-            }
         }
     }
 }
@@ -204,6 +259,7 @@ fn main() -> rltk::BError {
     gs.ecs.register::<InflictsDamage>();
     gs.ecs.register::<AreaOfEffect>();
     gs.ecs.register::<Confusion>();
+    gs.ecs.register::<SerializeMe>();
 
     let map: Map = Map::new_map_rooms_and_corridors();
     let (player_x, player_y) = map.rooms[0].center(); //make player spawn in center of "first" room
@@ -219,12 +275,13 @@ fn main() -> rltk::BError {
         spawner::spawn_room(&mut gs.ecs, room);
     }
 
-    gs.ecs.insert(RunState::PreRun);
+    gs.ecs.insert(RunState::MainMenu{menu_selection: MainMenuSelection::NewGame});
     gs.ecs.insert(map);
     gs.ecs.insert(Point::new(player_x, player_y));
     gs.ecs.insert(player_entity);
     gs.ecs.insert(gamelog::GameLog {
         entries: vec!["Welcome to Rusty Roguelike".to_string()],
     });
+    gs.ecs.insert(SimpleMarkerAllocator::<SerializeMe>::new());
     rltk::main_loop(context, gs)
 }
