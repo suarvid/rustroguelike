@@ -206,7 +206,11 @@ impl GameState for State {
                     gui::MainMenuResult::Selected{ selected } => {
                         match selected {
                             gui::MainMenuSelection::NewGame => new_runstate = RunState::PreRun,
-                            gui::MainMenuSelection::LoadGame => new_runstate = RunState::PreRun,
+                            gui::MainMenuSelection::LoadGame => {
+                                saveload_system::load_game(&mut self.ecs);
+                                new_runstate = RunState::AwaitingInput;
+                                saveload_system::delete_save();
+                            }
                             gui::MainMenuSelection::Quit => {std::process::exit(0);}
                         }
                     }
@@ -259,7 +263,12 @@ fn main() -> rltk::BError {
     gs.ecs.register::<InflictsDamage>();
     gs.ecs.register::<AreaOfEffect>();
     gs.ecs.register::<Confusion>();
-    gs.ecs.register::<SerializeMe>();
+    gs.ecs.register::<SimpleMarker<SerializeMe>>();
+    gs.ecs.register::<SerializationHelper>();
+    
+
+    // this has to be inserted before map usage
+    gs.ecs.insert(SimpleMarkerAllocator::<SerializeMe>::new());
 
     let map: Map = Map::new_map_rooms_and_corridors();
     let (player_x, player_y) = map.rooms[0].center(); //make player spawn in center of "first" room
@@ -282,6 +291,6 @@ fn main() -> rltk::BError {
     gs.ecs.insert(gamelog::GameLog {
         entries: vec!["Welcome to Rusty Roguelike".to_string()],
     });
-    gs.ecs.insert(SimpleMarkerAllocator::<SerializeMe>::new());
+    
     rltk::main_loop(context, gs)
 }

@@ -2,6 +2,12 @@
 use specs::prelude::*;
 use specs_derive::*;
 use rltk::{RGB};
+use crate::Map;
+use specs::saveload::ConvertSaveload;
+use specs::error::NoError;
+use specs::saveload::Marker;
+use serde::{Serialize, Deserialize};
+
 
 #[derive(Component, ConvertSaveload, Clone)]
 pub struct Position {
@@ -127,5 +133,10 @@ pub struct Confusion {
     pub turns: i32,
 }
 
-#[derive(Component, Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SerializeMe;
+
+#[derive(Component, Debug, Serialize, Deserialize, Clone)]
+pub struct SerializationHelper {
+    pub map: super::map::Map,
+}
