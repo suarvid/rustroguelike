@@ -71,6 +71,7 @@ pub enum RunState {
     },
     SaveGame,
     NextLevel,
+    GameOver,
 }
 
 impl State {
@@ -197,19 +198,68 @@ impl State {
             player_health.hp = i32::max(player_health.hp, player_health.max_hp / 2);
         }
     }
+
+    fn game_over_cleanup(&mut self) {
+        // Delete all the things
+        let mut to_delete = Vec::new();
+        for e in self.ecs.entities().join() {
+            to_delete.push(e);
+        }
+        for del in to_delete.iter() {
+            self.ecs.delete_entity(*del).expect("Deletion failed");
+        }
+
+        // make new map and place player
+        let worldmap;
+        {
+            let mut worldmap_resource = self.ecs.write_resource::<Map>();
+            *worldmap_resource = Map::new_map_rooms_and_corridors(1);
+            worldmap = worldmap_resource.clone();
+        }
+
+        //Spawn monsters and items
+        for room in worldmap.rooms.iter().skip(1) {
+            spawner::spawn_room(&mut self.ecs, room, worldmap.depth);
+        }
+
+        //Place player and update resources
+        let (player_x, player_y) = worldmap.rooms[0].center();
+        let player_entity = spawner::spawn_player(&mut self.ecs, player_x, player_y);
+        let mut player_position = self.ecs.write_resource::<Point>();
+        *player_position = Point::new(player_x, player_y);
+        let mut position_components = self.ecs.write_storage::<Position>();
+        let mut player_entity_writer = self.ecs.write_resource::<Entity>();
+        *player_entity_writer = player_entity;
+        let player_pos_comp = position_components.get_mut(player_entity);
+        if let Some(player_pos_comp) = player_pos_comp {
+            player_pos_comp.x = player_x;
+            player_pos_comp.y = player_y;
+        }
+
+        // mark player's vis as dirty
+        let mut viewshed_components = self.ecs.write_storage::<Viewshed>();
+        let vs = viewshed_components.get_mut(player_entity);
+        if let Some(vs) = vs {
+            vs.dirty = true;
+        }
+
+    }
 }
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut Rltk) {
-        ctx.cls();
+        
         let mut new_runstate;
         {
             let runstate = self.ecs.fetch::<RunState>();
             new_runstate = *runstate;
         }
 
+        ctx.cls();
+
         match new_runstate {
             RunState::MainMenu { .. } => {}
+            RunState::GameOver { .. } => {}
             _ => {
                 draw_map(&self.ecs, ctx);
 
@@ -359,6 +409,18 @@ impl GameState for State {
                     },
                 }
             }
+            RunState::GameOver => {
+                let result = gui::game_over(ctx);
+                match result {
+                    gui::GameOverResult::NoSelection => {},
+                    gui::GameOverResult::QuitToMenu => {
+                        self.game_over_cleanup();
+                        new_runstate = RunState::MainMenu{
+                            menu_selection: gui::MainMenuSelection::NewGame
+                        }
+                    }
+                }
+            }
             RunState::SaveGame => {
                 saveload_system::save_game(&mut self.ecs);
 
@@ -370,11 +432,14 @@ impl GameState for State {
                 self.go_to_next_level();
                 new_runstate = RunState::PreRun;
             }
+            
         }
         {
             let mut runwriter = self.ecs.write_resource::<RunState>();
             *runwriter = new_runstate;
         }
+        // without this call, game over won't work properly
+        damage_system::delete_the_dead(&mut self.ecs);
     }
 }
 
@@ -435,12 +500,13 @@ fn main() -> rltk::BError {
         spawner::spawn_room(&mut gs.ecs, room, map.depth);
     }
 
-    gs.ecs.insert(RunState::MainMenu {
-        menu_selection: MainMenuSelection::NewGame,
-    });
+    
     gs.ecs.insert(map);
     gs.ecs.insert(Point::new(player_x, player_y));
     gs.ecs.insert(player_entity);
+    gs.ecs.insert(RunState::MainMenu {
+        menu_selection: MainMenuSelection::NewGame,
+    });
     gs.ecs.insert(gamelog::GameLog {
         entries: vec!["Welcome to Rusty Roguelike".to_string()],
     });

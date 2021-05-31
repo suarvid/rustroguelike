@@ -1,5 +1,5 @@
 use specs::prelude::*;
-use crate::{Name, Player, gamelog::GameLog};
+use crate::{Name, Player, RunState, gamelog::GameLog, gui};
 
 use super::{CombatStats, SufferDamage};
 
@@ -24,6 +24,7 @@ impl<'a> System<'a> for DamageSystem {
 
 pub fn delete_the_dead(ecs: &mut World) {
     let mut dead: Vec<Entity> = Vec::new();
+    
 
     // New scopes resolves issue with borrow checker
     {
@@ -35,6 +36,7 @@ pub fn delete_the_dead(ecs: &mut World) {
 
         for (entity, stats) in (&entities, &combat_stats).join() {
             if stats.hp < 1 {
+                log.entries.push("Delete the dead called".to_string());
 
                 // check if current entity is a player
                 let player = players.get(entity);
@@ -46,8 +48,11 @@ pub fn delete_the_dead(ecs: &mut World) {
                         }
                         dead.push(entity);
                     }
-                    // player died
-                    Some(_) => log.entries.push("You are dead".to_string())
+                    Some(_) => {
+                        log.entries.push("Yee".to_string());
+                        let mut runstate = ecs.write_resource::<RunState>();
+                        *runstate = RunState::GameOver;
+                    }
                 }
             }
         }

@@ -130,7 +130,10 @@ pub fn spawn_room(ecs: &mut World, room: &Rect, map_depth: i32) {
             "Confusion Scroll" => confusion_scroll(ecs, x, y),
             "Magic Missile Scroll" => magic_missile_scroll(ecs, x, y),
             "Dagger" => dagger(ecs, x, y),
-            "Shield" => shield(ecs, x, y), 
+            "Shield" => shield(ecs, x, y),
+            "Greataxe" => greataxe(ecs, x, y),
+            "Longsword" => longsword(ecs, x, y),
+            "Tower Shield" => tower_shield(ecs, x, y), 
             _ => {}
         }
     }
@@ -257,21 +260,71 @@ fn shield(ecs: &mut World, x: i32, y: i32) {
 }
 
 
-fn random_item(ecs: &mut World, x: i32, y: i32) {
-    let roll: i32;
-    {
-        let mut rng = ecs.write_resource::<RandomNumberGenerator>();
-        roll = rng.roll_dice(1, 4);
-    }
-    match roll {
-        1 => spawn_health_potion(ecs, x, y),
-        2 => fireball_scroll(ecs, x, y),
-        3 => confusion_scroll(ecs, x, y),
-        _ => magic_missile_scroll(ecs, x, y),
-
-    }
+fn longsword(ecs: &mut World, x: i32, y: i32) {
+    ecs.create_entity()
+        .with(Position{x, y})
+        .with(Renderable{
+            glyph: rltk::to_cp437('!'),
+            fg: RGB::named(rltk::YELLOW),
+            bg: RGB::named(rltk::BLACK),
+            render_order: 2
+        })
+        .with(Name{
+            name: "Longsword".to_string()
+        })
+        .with(Item{})
+        .with(Equippable{
+            slot: EquipmentSlot::Melee
+        })
+        .with(MeleePowerBonus{
+            power: 4
+        })
+        .marked::<SimpleMarker<SerializeMe>>()
+        .build();
 }
 
+fn tower_shield(ecs: &mut World, x: i32, y: i32) {
+    ecs.create_entity()
+        .with(Position{x, y})
+        .with(Renderable{
+            glyph: rltk::to_cp437('H'),
+            fg: RGB::named(rltk::YELLOW),
+            bg: RGB::named(rltk::BLACK),
+            render_order: 2,
+        })
+        .with(Name{
+            name: "Tower Shield".to_string()
+        })
+        .with(Item{})
+        .with(Equippable{
+            slot: EquipmentSlot::Shield
+        })
+        .with(DefenseBonus{
+            defense: 3
+        })
+        .marked::<SimpleMarker<SerializeMe>>()
+        .build();
+}
+
+
+fn greataxe(ecs: &mut World, x: i32, y: i32) {
+    ecs.create_entity()
+        .with(Position{x, y})
+        .with(Renderable{
+            glyph: rltk::to_cp437('P'),
+            fg: RGB::named(rltk::CRIMSON),
+            bg: RGB::named(rltk::BLACK),
+            render_order: 2
+        })
+        .with(Name{name: "Greataxe".to_string()})
+        .with(Item{})
+        .with(Equippable{slot: EquipmentSlot::Melee})
+        .with(MeleePowerBonus{
+            power: 6
+        })
+        .marked::<SimpleMarker<SerializeMe>>()
+        .build();
+}
 
 fn room_table(map_depth: i32) -> RandomTable{
     RandomTable::new()
@@ -283,4 +336,7 @@ fn room_table(map_depth: i32) -> RandomTable{
         .add("Magic Missile Scroll", 4)
         .add("Dagger", 3)
         .add("Shield", 3)
+        .add("Longsword", 2 + map_depth - 4)
+        .add("Tower Shield", 2 + map_depth - 4)
+        .add("Greataxe", 1 + map_depth - 6)
 }
