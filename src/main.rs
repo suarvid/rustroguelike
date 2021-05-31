@@ -9,6 +9,7 @@ use serde::*;
 mod components;
 mod inventory_system;
 mod spawner;
+mod random_table;
 
 pub use components::*;
 
@@ -149,7 +150,7 @@ impl State {
 
         // spawn monsters and items
         for room in worldmap.rooms.iter().skip(1) {
-            spawner::spawn_room(&mut self.ecs, room);
+            spawner::spawn_room(&mut self.ecs, room, worldmap.depth);
         }
 
         //Place player and update resources
@@ -368,7 +369,7 @@ fn main() -> rltk::BError {
     // skip the first room to avoid the player
     // spawning on a mob
     for room in map.rooms.iter().skip(1) {
-        spawner::spawn_room(&mut gs.ecs, room);
+        spawner::spawn_room(&mut gs.ecs, room, map.depth);
     }
 
     gs.ecs.insert(RunState::MainMenu{menu_selection: MainMenuSelection::NewGame});
