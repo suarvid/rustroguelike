@@ -15,6 +15,7 @@ pub const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
 pub enum TileType {
     Wall,
     Floor,
+    DownStairs,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
@@ -26,6 +27,7 @@ pub struct Map {
     pub revealed_tiles: Vec<bool>,
     pub visible_tiles: Vec<bool>,
     pub blocked: Vec<bool>,
+    pub depth: i32,
 
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
@@ -97,7 +99,7 @@ impl Map {
 
     // makes a map with random rooms and corridors joining them together
     // using the three functions above
-    pub fn new_map_rooms_and_corridors() -> Map {
+    pub fn new_map_rooms_and_corridors(new_depth: i32) -> Map {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAPCOUNT],
             rooms: Vec::new(),
@@ -107,6 +109,7 @@ impl Map {
             visible_tiles: vec![false; MAPCOUNT],
             blocked: vec![false; MAPCOUNT],
             tile_content: vec![Vec::new(); MAPCOUNT],
+            depth: new_depth,
         };
 
         const MAX_ROOMS: i32 = 30;
@@ -157,6 +160,10 @@ impl Map {
             }
         }
 
+        let down_stairs_position = map.rooms[map.rooms.len()-1].center();
+        let down_stairs_idx = map.xy_idx(down_stairs_position.0, down_stairs_position.1);
+        map.tiles[down_stairs_idx] = TileType::DownStairs;
+
         map
     }
 }
@@ -182,6 +189,10 @@ pub fn draw_map(ecs: &World, ctx: &mut Rltk) {
                 TileType::Wall => {
                     glyph = rltk::to_cp437('#');
                     fg = RGB::named(rltk::BURLYWOOD);
+                }
+                TileType::DownStairs => {
+                    glyph = rltk::to_cp437('↓');
+                    fg = RGB::named(rltk::RED);
                 }
             }
 
