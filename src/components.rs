@@ -112,6 +112,11 @@ pub struct WantsToDropItem {
     pub item: Entity
 }
 
+#[derive(Component, Debug, ConvertSaveload, Clone)]
+pub struct WantsToRemoveItem {
+    pub item: Entity
+}
+
 
 #[derive(Component, Debug, ConvertSaveload, Clone)]
 pub struct Ranged {

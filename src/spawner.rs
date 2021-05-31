@@ -281,6 +281,6 @@ fn room_table(map_depth: i32) -> RandomTable{
         .add("Fireball Scroll", 2 + map_depth)
         .add("Confusion Scroll", 2 + map_depth)
         .add("Magic Missile Scroll", 4)
-        .add("Dagger", 10)
-        .add("Shield", 10)
+        .add("Dagger", 3)
+        .add("Shield", 3)
 }
