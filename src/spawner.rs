@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::random_table::RandomTable;
-use crate::{AreaOfEffect, Confusion, Consumable, EquipmentSlot, Equippable, Item, MAPWIDTH, ProvidesHealing, Rect, SerializeMe};
+use crate::{AreaOfEffect, Confusion, Consumable, DefenseBonus, EquipmentSlot, Equippable, Item, MAPWIDTH, MeleePowerBonus, ProvidesHealing, Rect, SerializeMe};
 
 use super::{BlocksTile, CombatStats, Monster, Name, Player, Position, Renderable, Viewshed, Ranged, InflictsDamage};
 use rltk::{RandomNumberGenerator, RGB};
@@ -229,6 +229,9 @@ fn dagger(ecs: &mut World, x: i32, y: i32) {
         .with(Name{ name : "Dagger".to_string() })
         .with(Item{})
         .with(Equippable{ slot: EquipmentSlot::Melee })
+        .with(MeleePowerBonus{
+            power: 2
+        })
         .marked::<SimpleMarker<SerializeMe>>()
         .build();
 }
@@ -246,6 +249,9 @@ fn shield(ecs: &mut World, x: i32, y: i32) {
         .with(Name{ name : "Shield".to_string() })
         .with(Item{})
         .with(Equippable{ slot: EquipmentSlot::Shield })
+        .with(DefenseBonus{
+            defense: 1
+        })
         .marked::<SimpleMarker<SerializeMe>>()
         .build();
 }
